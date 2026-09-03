@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a module or improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Payment gateway
+        - Addon module
+        - Server/provisioning module
+        - Repository/tooling
+    validations:
+      required: true
+  - type: input
+    id: module
+    attributes:
+      label: Existing module (if applicable)
+      placeholder: payments/revolut
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Operational use case
+      description: Explain the problem this would solve in a real WHMCS deployment.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: input
+    id: upstream
+    attributes:
+      label: Upstream documentation
+      description: Link to the relevant provider/API documentation when applicable.
