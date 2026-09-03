@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/serverspan/whmcs-modules/security/policy
+    about: Please use the security policy instead of a public issue for sensitive vulnerabilities.
+  - name: ServerSpan hosting and infrastructure
+    url: https://www.serverspan.com/en/
+    about: Hosting, VPS, reseller hosting, and infrastructure support are handled through ServerSpan.

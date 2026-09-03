@@ -1,0 +1,76 @@
+name: Bug report
+description: Report a reproducible problem in a module
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: input
+    id: module
+    attributes:
+      label: Module
+      description: "Example: payments/revolut"
+      placeholder: payments/revolut
+    validations:
+      required: true
+  - type: input
+    id: module_version
+    attributes:
+      label: Module version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: whmcs
+    attributes:
+      label: WHMCS version
+      placeholder: 9.0.x
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      placeholder: 8.3.x
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Upstream environment
+      options:
+        - Sandbox / test
+        - Production / live
+        - Not applicable
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the actual behaviour and the expected behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove API keys, passwords, card data, payment tokens, customer PII, and other secrets before posting.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed API keys, passwords, card data, payment tokens, and customer secrets from this report.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

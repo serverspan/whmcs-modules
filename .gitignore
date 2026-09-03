@@ -1,0 +1,37 @@
+# Generated releases
+dist/
+*.zip
+*.tar.gz
+
+# Secrets / local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Logs and dumps
+*.log
+*.sql
+*.sqlite
+*.sqlite3
+
+# Dependency/build directories
+vendor/
+node_modules/
+coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.swp
+*.swo
+*~
