@@ -359,6 +359,7 @@ function supportpin_clientarea($vars)
             'oneTime'     => pin_setting('one_time', '') === 'on',
             'expiryHours' => (int) pin_setting('expiry_hours', 0),
             'generated'   => $generated,
+            'addonLang'   => isset($vars['_lang']) ? $vars['_lang'] : [],
         ],
     ];
 }

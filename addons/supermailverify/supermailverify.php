@@ -769,6 +769,7 @@ function supermailverify_clientarea($vars)
             'captchaProvider' => $captchaProvider,
             'turnstileSiteKey'  => $captchaProvider === 'turnstile' ? sev_setting('turnstile_site_key') : '',
             'recaptchaSiteKey'  => $captchaProvider === 'recaptcha_v3' ? sev_setting('recaptcha_site_key') : '',
+            'addonLang'       => $LANG,
         ],
     ];
 }
