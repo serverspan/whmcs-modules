@@ -1,3 +1,5 @@
+<a href="https://github.com/serverspan/whmcs-modules"><img src="assets/ss-whmcs-modules-logo.jpg"/></a>
+
 # ServerSpan WHMCS Modules
 
 [![CI](https://github.com/serverspan/whmcs-modules/actions/workflows/ci.yml/badge.svg)](https://github.com/serverspan/whmcs-modules/actions/workflows/ci.yml)
