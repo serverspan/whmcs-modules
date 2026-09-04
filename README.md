@@ -19,6 +19,7 @@ The goal of this repository is simple: useful WHMCS integrations that are readab
 | Revolut Gateway for WHMCS | Payment | 1.0.0-beta.1 | **Beta** - sandbox validation required | [`payments/revolut`](payments/revolut/) |
 | ServerSpan Sales Tracker | Addon | 1.0.0-beta.1 | **Beta** - live WHMCS validation required | [`addons/sales-tracker`](addons/sales-tracker/) |
 | ServerSpan Colete Online | Addon | 1.0.0-beta.1 | **Beta** - Colete-Online staging validation required | [`addons/colete-online`](addons/colete-online/) |
+| ServerSpan LogicBoxes Tools | Addon | 1.0.0-beta.1 | **Beta** - LogicBoxes test-account validation required | [`addons/logicboxes-tools`](addons/logicboxes-tools/) |
 
 > **Production note:** a module is not considered production-ready merely because it passes static tests. Read the module-specific test status and perform the documented provider sandbox tests before enabling it for live billing.
 
@@ -59,6 +60,7 @@ Build install ZIPs:
 make package-revolut
 make package-sales-tracker
 make package-colete-online
+make package-logicboxes-tools
 ```
 
 Generated archives are written to `dist/` and are intentionally ignored by Git.
@@ -81,4 +83,4 @@ For a vulnerability that should not be public, follow [`SECURITY.md`](SECURITY.m
 
 MIT. See [`LICENSE`](LICENSE).
 
-WHMCS, Revolut, Colete-Online, DirectAdmin, cPanel, and other product names are trademarks of their respective owners. This repository is not endorsed by those vendors unless explicitly stated for a specific module.
+WHMCS, Revolut, Colete-Online, ResellerClub, LogicBoxes, DirectAdmin, cPanel, and other product names are trademarks of their respective owners. This repository is not endorsed by those vendors unless explicitly stated for a specific module.
