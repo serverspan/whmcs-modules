@@ -28,6 +28,7 @@
                 </div>
 
                 <form method="post" action="index.php?m=supportpin" id="pinGenerateForm">
+                    <input type="hidden" name="token" value="{$token}">
                     <input type="hidden" name="pin_action" value="generate">
                     <button type="submit" class="btn btn-primary" id="pinGenerateBtn">
                         {if $hasPin}{$addonLang.pin_regenerate|default:'Generate New PIN'}{else}{$addonLang.pin_generate|default:'Generate PIN'}{/if}
@@ -50,10 +51,15 @@
         e.preventDefault();
         var btn = document.getElementById('pinGenerateBtn');
         btn.disabled = true;
+        var tokenField = form.querySelector('input[name="token"]');
         fetch('index.php?m=supportpin', {
             method: 'POST',
             headers: {'X-Requested-With': 'XMLHttpRequest'},
-            body: new URLSearchParams({pin_action: 'generate', ajax: '1'})
+            body: new URLSearchParams({
+                pin_action: 'generate',
+                ajax: '1',
+                token: tokenField ? tokenField.value : ''
+            })
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {

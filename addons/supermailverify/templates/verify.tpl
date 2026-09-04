@@ -17,6 +17,7 @@
                 <p>{$addonLang.sev_intro|default:'Enter the verification code we sent to your email address.'}</p>
 
                 <form method="post" action="index.php?m=supermailverify">
+                    <input type="hidden" name="token" value="{$token}">
                     <input type="hidden" name="sev_do" value="verify">
 
                     <div class="form-group">
@@ -38,6 +39,7 @@
 
                 <hr>
                 <form method="post" action="index.php?m=supermailverify">
+                    <input type="hidden" name="token" value="{$token}">
                     <input type="hidden" name="sev_do" value="resend">
                     <input type="hidden" name="email" value="{$email}">
                     <button type="submit" class="btn btn-default btn-block">
