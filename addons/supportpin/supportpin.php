@@ -312,10 +312,9 @@ function pin_admin_log($modulelink)
 
 function supportpin_clientarea($vars)
 {
-    $userid = (int) (isset($vars['clientsdetails']['userid']) ? $vars['clientsdetails']['userid'] : 0);
-    if (!$userid && !empty($vars['clientsdetails']['email'])) {
-        $u = Capsule::table('tblusers')->where('email', $vars['clientsdetails']['email'])->first();
-        $userid = $u ? (int) $u->id : 0;
+    $userid = (int) \WHMCS\Session::get('uid');
+    if (!$userid && !empty($_SESSION['uid'])) {
+        $userid = (int) $_SESSION['uid'];
     }
 
     // AJAX: generate a new PIN without a page reload.

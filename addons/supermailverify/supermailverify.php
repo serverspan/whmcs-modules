@@ -703,11 +703,18 @@ function supermailverify_clientarea($vars)
     $success = '';
 
     $email = '';
-    if (!empty($vars['clientsdetails']['email'])) {
+    $sessionUid = (int) \WHMCS\Session::get('uid');
+    if ($sessionUid) {
+        $sessionUser = Capsule::table('tblusers')->where('id', $sessionUid)->first();
+        if ($sessionUser) {
+            $email = strtolower(trim($sessionUser->email));
+        }
+    }
+    if (!$email && !empty($vars['clientsdetails']['email'])) {
         $email = strtolower(trim($vars['clientsdetails']['email']));
-    } elseif (!empty($_POST['email'])) {
+    } elseif (!$email && !empty($_POST['email'])) {
         $email = strtolower(trim((string) $_POST['email']));
-    } elseif (!empty($_GET['email'])) {
+    } elseif (!$email && !empty($_GET['email'])) {
         $email = strtolower(trim((string) $_GET['email']));
     }
 
@@ -725,7 +732,7 @@ function supermailverify_clientarea($vars)
         } else {
             $do = isset($_POST['sev_do']) ? $_POST['sev_do'] : 'verify';
             if ($do === 'resend') {
-                $userid = $record ? $record->userid : (int) ($vars['clientsdetails']['userid'] ?? 0);
+                $userid = $record ? $record->userid : $sessionUid;
                 list($ok, $info) = sev_send_verification($userid, $email);
                 if ($ok) {
                     $success = $LANG['code_resent'] ?? 'A new verification code has been sent to your email.';
@@ -762,7 +769,7 @@ function supermailverify_clientarea($vars)
         'requirelogin' => false,
         'vars'         => [
             'email'           => $email,
-            'emailLocked'     => !empty($vars['clientsdetails']['email']),
+            'emailLocked'     => $sessionUid > 0 || !empty($vars['clientsdetails']['email']),
             'isVerified'      => $record && $record->verified,
             'error'           => $error,
             'success'         => $success,
