@@ -8,6 +8,8 @@ test: lint
 	@php addons/sales-tracker/tests/selftest.php
 	@php addons/colete-online/tests/selftest.php
 	@php addons/logicboxes-tools/tests/selftest.php
+	@php addons/logicboxes-tools/tests/reinclude.php
+	@php addons/logicboxes-tools/tests/reinclude-hooks.php
 
 package-revolut:
 	@./scripts/package-module.sh payments/revolut revolut-whmcs
