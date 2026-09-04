@@ -3,6 +3,11 @@ if (!defined('WHMCS')) {
     die('This file cannot be accessed directly');
 }
 
+if (defined('SERVERSPAN_LOGICBOXESTOOLS_HOOKS_REGISTERED')) {
+    return;
+}
+define('SERVERSPAN_LOGICBOXESTOOLS_HOOKS_REGISTERED', true);
+
 if (!function_exists('serverspanlogicboxestools_bootstrap')) {
     require_once __DIR__ . '/serverspanlogicboxestools.php';
 }
