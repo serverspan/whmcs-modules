@@ -18,7 +18,6 @@ function pdns_hook_domain($vars)
     // Registrar hooks carry params.sld/params.tld; some carry a plain domain.
     if (!empty($vars['params']['sld']) && !empty($vars['params']['tld'])) {
         $tld = strtolower(trim((string) $vars['params']['tld']));
-        // IDN TLDs arrive punycode-encoded already; just join.
         return strtolower(trim((string) $vars['params']['sld'])) . '.' . $tld;
     }
     if (!empty($vars['domain'])) {
@@ -39,8 +38,9 @@ function pdns_lifecycle_zone($vars, $event)
     if (!$domain) {
         return;
     }
-    if (!pdns_zone_exists($domain)) {
-        list($ok, $err) = pdns_create_zone($domain);
+    $server = pdns_resolve_server(); // registrar events have no service server
+    if (!pdns_zone_exists($domain, $server)) {
+        list($ok, $err) = pdns_create_zone($domain, $server);
         if (!$ok) {
             pdns_log('zone_create_failed', $domain, $err, 'system');
             return;
@@ -56,7 +56,7 @@ function pdns_lifecycle_zone($vars, $event)
     if ($templateId) {
         list($ok, $err) = pdns_apply_template($templateId, $domain, [
             '{client.id}' => pdns_domain_owner($domain),
-        ]);
+        ], $server);
         pdns_log($ok ? 'template_applied' : 'template_failed', $domain, $ok ? '#' . $templateId : $err, 'system');
     }
 }
@@ -80,13 +80,14 @@ add_hook('DomainDeleted', 1, function ($vars) {
     if (!$domain) {
         return;
     }
-    list($ok, $err) = pdns_delete_zone($domain);
+    list($ok, $err) = pdns_delete_zone($domain); // resolves the zone's own server
     pdns_log($ok ? 'zone_deleted' : 'zone_delete_failed', $domain, $ok ? 'domain deleted' : $err, 'system');
 });
 
 /**
  * Product-matched zone templates: when a hosting service is created, apply
- * the template assigned to its product to the service domain.
+ * the template assigned to its product to the service domain — on the server
+ * the service itself is provisioned on when that server is a pdnshosting one.
  */
 add_hook('AfterModuleCreate', 1, function ($vars) {
     $params = isset($vars['params']) ? $vars['params'] : [];
@@ -99,8 +100,12 @@ add_hook('AfterModuleCreate', 1, function ($vars) {
     if (!$templateId) {
         return;
     }
-    if (!pdns_zone_exists($domain)) {
-        list($ok, $err) = pdns_create_zone($domain);
+    $server = null;
+    if (!empty($params['serverid'])) {
+        $server = pdns_resolve_server(null, (int) $params['serverid']);
+    }
+    if (!pdns_zone_exists($domain, $server)) {
+        list($ok, $err) = pdns_create_zone($domain, $server);
         if (!$ok) {
             pdns_log('zone_create_failed', $domain, $err, 'system');
             return;
@@ -117,7 +122,7 @@ add_hook('AfterModuleCreate', 1, function ($vars) {
         '{service.assigned_ip}'    => $assignedIp,
         '{server.ip}'              => isset($params['serverip']) ? trim($params['serverip']) : '',
         '{server.hostname}'        => isset($params['serverhostname']) ? trim($params['serverhostname']) : '',
-    ]);
+    ], $server);
     Capsule::table('mod_pdns_zones')->updateOrInsert(
         ['domain' => $domain],
         ['clientid' => isset($params['userid']) ? (int) $params['userid'] : 0,
