@@ -1,0 +1,13 @@
+{
+  "name": "ServerSpan Colete Online for WHMCS",
+  "slug": "colete-online",
+  "type": "addon",
+  "version": "1.0.0-beta.1",
+  "stability": "beta",
+  "license": "MIT",
+  "php": ">=8.1",
+  "whmcs": ">=8.13",
+  "entrypoint": "modules/addons/serverspancoleteonline/serverspancoleteonline.php",
+  "upstream": "https://docs.api.colete-online.ro/",
+  "homepage": "https://www.serverspan.com/en/"
+}
