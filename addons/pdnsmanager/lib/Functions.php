@@ -3,6 +3,11 @@
  * ServerSpan PowerDNS Manager - shared library
  * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/addons/pdnsmanager/lib/Functions.php
+ *
+ * Credentials and nameservers come from WHMCS server records of type
+ * "pdnshosting" (System Settings > Servers). Each zone remembers which
+ * server it lives on (mod_pdns_zones.server_id), so multi-server setups
+ * route every operation to the right backend.
  */
 
 if (!defined("WHMCS")) {
@@ -31,8 +36,101 @@ function pdns_setting($key, $default = '')
     return (isset($s[$key]) && $s[$key] !== '') ? $s[$key] : $default;
 }
 
-function pdns_nameservers()
+/**
+ * Additive schema migration for existing installs (adds server_id).
+ */
+function pdns_ensure_schema()
 {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        if (Capsule::schema()->hasTable('mod_pdns_zones')
+            && !Capsule::schema()->hasColumn('mod_pdns_zones', 'server_id')) {
+            Capsule::schema()->table('mod_pdns_zones', function ($table) {
+                $table->unsignedInteger('server_id')->default(0)->index()->after('domain');
+            });
+        }
+    } catch (\Exception $e) {
+        // non-fatal; operations fall back to the default server
+    }
+}
+
+/* ----------------------------------------------------------------- servers */
+
+/**
+ * All WHMCS server records of type pdnshosting, keyed by id.
+ */
+function pdns_servers()
+{
+    static $servers = null;
+    if ($servers === null) {
+        $servers = [];
+        foreach (Capsule::table('tblservers')->where('type', 'pdnshosting')->get() as $row) {
+            $servers[(int) $row->id] = $row;
+        }
+    }
+    return $servers;
+}
+
+/**
+ * Resolve the backend for an operation. Priority: the zone's recorded server,
+ * the admin-configured default, then the first pdnshosting server.
+ * Returns a normalized array or null when nothing is configured.
+ */
+function pdns_resolve_server($domain = null, $whmcsServerId = 0)
+{
+    pdns_ensure_schema();
+    $servers = pdns_servers();
+
+    if (!$whmcsServerId && $domain) {
+        $row = Capsule::table('mod_pdns_zones')->where('domain', strtolower($domain))->first();
+        if ($row && isset($row->server_id)) {
+            $whmcsServerId = (int) $row->server_id;
+        }
+    }
+    if (!$whmcsServerId || !isset($servers[$whmcsServerId])) {
+        $whmcsServerId = (int) pdns_setting('default_server_id', 0);
+    }
+    if (!isset($servers[$whmcsServerId])) {
+        $whmcsServerId = $servers ? (int) array_key_first($servers) : 0;
+    }
+    if (!$whmcsServerId || !isset($servers[$whmcsServerId])) {
+        return null;
+    }
+    $row = $servers[$whmcsServerId];
+
+    $scheme = $row->secure ? 'https://' : 'http://';
+    $host = trim((string) $row->hostname);
+    if ($host !== '' && strpos($host, 'http') !== 0) {
+        $host = $scheme . $host;
+    }
+    $ns = [];
+    for ($i = 1; $i <= 4; $i++) {
+        $f = 'nameserver' . $i;
+        if (!empty($row->{$f})) {
+            $ns[] = rtrim(strtolower(trim($row->{$f})), '.') . '.';
+        }
+    }
+    return [
+        'whmcs_server_id' => $whmcsServerId,
+        'api_url'         => rtrim($host, '/'),
+        'api_key'         => (string) $row->accesshash,
+        'pdns_server_id'  => 'localhost',
+        'nameservers'     => $ns,
+        'label'           => $row->name ?: $host,
+    ];
+}
+
+function pdns_nameservers($server = null)
+{
+    $server = $server ?: pdns_resolve_server();
+    if ($server && $server['nameservers']) {
+        return $server['nameservers'];
+    }
+    // Legacy fallback: addon-level ns fields when no server record exists.
     $ns = [];
     for ($i = 1; $i <= 5; $i++) {
         $v = strtolower(trim(pdns_setting('ns' . $i)));
@@ -52,18 +150,23 @@ function pdns_protected_domains()
 /* --------------------------------------------------------------------- API */
 
 /**
- * Call the PowerDNS API. Returns [http_code, decoded].
+ * Call the PowerDNS API. $server: a pdns_resolve_server() array or a WHMCS
+ * server id; null resolves from the domain/default. Returns [http_code, decoded].
  */
-function pdns_api($method, $path, array $payload = null)
+function pdns_api($method, $path, array $payload = null, $server = null, $domain = null)
 {
-    $base = rtrim(pdns_setting('api_url'), '/');
-    $serverId = pdns_setting('server_id', 'localhost');
-    $ch = curl_init($base . '/api/v1/servers/' . rawurlencode($serverId) . $path);
+    if (!is_array($server)) {
+        $server = pdns_resolve_server($domain, (int) $server);
+    }
+    if (!$server || !$server['api_url']) {
+        return [0, ['error' => 'No pdnshosting server is configured in System Settings > Servers']];
+    }
+    $ch = curl_init($server['api_url'] . '/api/v1/servers/' . rawurlencode($server['pdns_server_id']) . $path);
     $opts = [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 30,
         CURLOPT_HTTPHEADER     => [
-            'X-API-Key: ' . pdns_setting('api_key'),
+            'X-API-Key: ' . $server['api_key'],
             'Accept: application/json',
             'Content-Type: application/json',
         ],
@@ -99,39 +202,41 @@ function pdns_zone_id($domain)
     return strtolower(trim($domain)) . '.';
 }
 
-function pdns_zone_exists($domain)
+function pdns_zone_exists($domain, $server = null)
 {
-    list($code) = pdns_api('GET', '/zones/' . pdns_zone_id($domain));
+    list($code) = pdns_api('GET', '/zones/' . pdns_zone_id($domain), null, $server, $domain);
     return $code === 200;
 }
 
 /**
  * Full zone object (with rrsets) or null.
  */
-function pdns_get_zone($domain)
+function pdns_get_zone($domain, $server = null)
 {
-    list($code, $resp) = pdns_api('GET', '/zones/' . pdns_zone_id($domain));
+    list($code, $resp) = pdns_api('GET', '/zones/' . pdns_zone_id($domain), null, $server, $domain);
     return $code === 200 && is_array($resp) ? $resp : null;
 }
 
 /**
- * Create a zone. Respects the zone-type and creation-method settings.
+ * Create a zone on the given (or resolved) server and remember the mapping.
  * Returns [ok, error].
  */
-function pdns_create_zone($domain)
+function pdns_create_zone($domain, $server = null)
 {
+    $server = is_array($server) ? $server : pdns_resolve_server(null, (int) $server);
+    if (!$server) {
+        return [false, 'No pdnshosting server is configured.'];
+    }
     $payload = [
         'name'        => pdns_zone_id($domain),
         'kind'        => pdns_setting('zone_type', 'Native') === 'Master' ? 'Master' : 'Native',
         'nameservers' => [],
     ];
     if (pdns_setting('create_method', 'rrsets') === 'nameservers') {
-        // Legacy PowerDNS (<= 4.2): nameservers list is mandatory.
-        $payload['nameservers'] = pdns_nameservers();
+        $payload['nameservers'] = pdns_nameservers($server);
     } else {
-        // Modern: create with rrsets only.
         $ns = [];
-        foreach (pdns_nameservers() as $host) {
+        foreach (pdns_nameservers($server) as $host) {
             $ns[] = ['content' => $host, 'disabled' => false];
         }
         if ($ns) {
@@ -141,17 +246,22 @@ function pdns_create_zone($domain)
             ]];
         }
     }
-    list($code, $resp) = pdns_api('POST', '/zones', $payload);
+    list($code, $resp) = pdns_api('POST', '/zones', $payload, $server);
     if ($code !== 201 && $code !== 200) {
         return [false, pdns_api_error($resp, $code)];
     }
-    pdns_rectify($domain);
+    pdns_ensure_schema();
+    Capsule::table('mod_pdns_zones')->updateOrInsert(
+        ['domain' => strtolower($domain)],
+        ['server_id' => $server['whmcs_server_id'], 'created_at' => date('Y-m-d H:i:s')]
+    );
+    pdns_rectify($domain, $server);
     return [true, ''];
 }
 
 function pdns_delete_zone($domain)
 {
-    list($code, $resp) = pdns_api('DELETE', '/zones/' . pdns_zone_id($domain));
+    list($code, $resp) = pdns_api('DELETE', '/zones/' . pdns_zone_id($domain), null, null, $domain);
     if ($code !== 204 && $code !== 200 && $code !== 404) {
         return [false, pdns_api_error($resp, $code)];
     }
@@ -163,15 +273,15 @@ function pdns_delete_zone($domain)
  * Apply a set of rrsets changes in ONE batched PATCH, then rectify when the
  * zone is DNSSEC-signed.
  */
-function pdns_patch_rrsets($domain, array $rrsets)
+function pdns_patch_rrsets($domain, array $rrsets, $server = null)
 {
-    list($code, $resp) = pdns_api('PATCH', '/zones/' . pdns_zone_id($domain), ['rrsets' => $rrsets]);
+    list($code, $resp) = pdns_api('PATCH', '/zones/' . pdns_zone_id($domain), ['rrsets' => $rrsets], $server, $domain);
     if ($code !== 204 && $code !== 200) {
         return [false, pdns_api_error($resp, $code)];
     }
-    $zone = pdns_get_zone($domain);
+    $zone = pdns_get_zone($domain, $server);
     if ($zone && !empty($zone['dnssec'])) {
-        pdns_rectify($domain);
+        pdns_rectify($domain, $server);
     }
     return [true, ''];
 }
@@ -179,20 +289,20 @@ function pdns_patch_rrsets($domain, array $rrsets)
 /**
  * Rectify a zone. Mode: auto (try POST, fall back to PUT), post, put, none.
  */
-function pdns_rectify($domain)
+function pdns_rectify($domain, $server = null)
 {
     $mode = pdns_setting('rectify_mode', 'auto');
     if ($mode === 'none') {
         return;
     }
     if ($mode === 'auto' || $mode === 'post') {
-        list($code) = pdns_api('POST', '/zones/' . pdns_zone_id($domain) . '/rectify');
+        list($code) = pdns_api('POST', '/zones/' . pdns_zone_id($domain) . '/rectify', null, $server, $domain);
         if ($code === 200 || $mode === 'post') {
             return;
         }
     }
     if ($mode === 'auto' || $mode === 'put') {
-        pdns_api('PUT', '/zones/' . pdns_zone_id($domain), ['rectify' => true]);
+        pdns_api('PUT', '/zones/' . pdns_zone_id($domain), ['rectify' => true], $server, $domain);
     }
 }
 
@@ -304,7 +414,7 @@ function pdns_dnssec_enable($domain)
 {
     list($code, $resp) = pdns_api('POST', '/zones/' . pdns_zone_id($domain) . '/cryptokeys', [
         'keytype' => 'csk', 'active' => true,
-    ]);
+    ], null, $domain);
     if ($code !== 201 && $code !== 200) {
         return [false, pdns_api_error($resp, $code)];
     }
@@ -314,7 +424,7 @@ function pdns_dnssec_enable($domain)
 
 function pdns_dnssec_disable($domain)
 {
-    list($code, $keys) = pdns_api('GET', '/zones/' . pdns_zone_id($domain) . '/cryptokeys');
+    list($code, $keys) = pdns_api('GET', '/zones/' . pdns_zone_id($domain) . '/cryptokeys', null, null, $domain);
     if ($code !== 200 || !is_array($keys)) {
         return [false, pdns_api_error($keys, $code)];
     }
@@ -322,8 +432,8 @@ function pdns_dnssec_disable($domain)
         if (empty($key['active'])) {
             continue;
         }
-        pdns_api('PUT', '/zones/' . pdns_zone_id($domain) . '/cryptokeys/' . (int) $key['id'], ['active' => false]);
-        pdns_api('DELETE', '/zones/' . pdns_zone_id($domain) . '/cryptokeys/' . (int) $key['id']);
+        pdns_api('PUT', '/zones/' . pdns_zone_id($domain) . '/cryptokeys/' . (int) $key['id'], ['active' => false], null, $domain);
+        pdns_api('DELETE', '/zones/' . pdns_zone_id($domain) . '/cryptokeys/' . (int) $key['id'], null, null, $domain);
     }
     return [true, ''];
 }
@@ -333,7 +443,7 @@ function pdns_dnssec_disable($domain)
  */
 function pdns_ds_records($domain)
 {
-    list($code, $keys) = pdns_api('GET', '/zones/' . pdns_zone_id($domain) . '/cryptokeys');
+    list($code, $keys) = pdns_api('GET', '/zones/' . pdns_zone_id($domain) . '/cryptokeys', null, null, $domain);
     $ds = [];
     if ($code === 200 && is_array($keys)) {
         foreach ($keys as $key) {
@@ -362,7 +472,6 @@ function pdns_parse_zonefile($text, $domain)
     $sets = [];
     $skipped = 0;
 
-    // Join parenthesised continuations and strip comments.
     $logical = [];
     $buffer = '';
     foreach (preg_split('/\r?\n/', (string) $text) as $line) {
@@ -389,7 +498,6 @@ function pdns_parse_zonefile($text, $domain)
         if (preg_match('/^\$TTL\s+\d+/i', $line)) {
             continue;
         }
-        // name [ttl] [IN] TYPE data — name may be absent (same as previous).
         if (!preg_match('/^(\S+)?\s*(?:(\d+)\s+)?(?:IN\s+)?(A|AAAA|CNAME|MX|TXT|SRV|CAA|NS|TLSA|PTR|SOA)\s+(.+)$/i', $line, $m)) {
             $skipped++;
             continue;
@@ -448,7 +556,7 @@ function pdns_export_zonefile($zone)
 /* --------------------------------------------------------- nameserver check */
 
 /**
- * Compare live NS records against the module configuration via DNS-over-HTTPS.
+ * Compare live NS records against the zone's server nameservers via DoH.
  * Returns [status, live_ns]: match | mismatch | error.
  */
 function pdns_ns_check($domain)
@@ -480,7 +588,7 @@ function pdns_ns_check($domain)
             $live[] = strtolower(rtrim($ans['data'], '.'));
         }
     }
-    $expected = array_map(function ($n) { return strtolower(rtrim($n, '.')); }, pdns_nameservers());
+    $expected = array_map(function ($n) { return strtolower(rtrim($n, '.')); }, pdns_nameservers(pdns_resolve_server($domain)));
     sort($live);
     sort($expected);
     return [$live === $expected ? 'match' : 'mismatch', $live];
@@ -490,10 +598,9 @@ function pdns_ns_check($domain)
 
 /**
  * Apply a zone template to a domain in one batched PATCH (idempotent via
- * the template_applied flag). $context may carry service/server values for
- * variable substitution.
+ * the template_applied flag). $server pins the operation to a backend.
  */
-function pdns_apply_template($templateId, $domain, array $context = [])
+function pdns_apply_template($templateId, $domain, array $context = [], $server = null)
 {
     $tpl = Capsule::table('mod_pdns_templates')->where('id', (int) $templateId)->first();
     if (!$tpl) {
@@ -521,7 +628,7 @@ function pdns_apply_template($templateId, $domain, array $context = [])
     foreach ($records as $r) {
         $type = strtoupper((string) $r['type']);
         if ($type === 'SOA' || ($type === 'NS' && (trim($r['name']) === '' || trim($r['name']) === '@'))) {
-            continue; // apex SOA/NS guard at apply time
+            continue;
         }
         if (!in_array($type, pdns_allowed_record_types(), true)) {
             continue;
@@ -539,15 +646,19 @@ function pdns_apply_template($templateId, $domain, array $context = [])
     if (!$rrsets) {
         return [false, 'Template produced no applicable records.'];
     }
-    list($ok, $err) = pdns_patch_rrsets($domain, $rrsets);
+    list($ok, $err) = pdns_patch_rrsets($domain, $rrsets, $server);
     if (!$ok) {
         return [false, $err];
     }
-    Capsule::table('mod_pdns_zones')->updateOrInsert(
-        ['domain' => strtolower($domain)],
-        ['template_applied' => 1, 'clientid' => isset($context['{client.id}']) ? (int) $context['{client.id}'] : 0,
-         'created_at' => date('Y-m-d H:i:s')]
-    );
+    $update = [
+        'template_applied' => 1,
+        'clientid' => isset($context['{client.id}']) ? (int) $context['{client.id}'] : 0,
+        'created_at' => date('Y-m-d H:i:s'),
+    ];
+    if (is_array($server) && isset($server['whmcs_server_id'])) {
+        $update['server_id'] = $server['whmcs_server_id'];
+    }
+    Capsule::table('mod_pdns_zones')->updateOrInsert(['domain' => strtolower($domain)], $update);
     return [true, ''];
 }
 
@@ -596,9 +707,6 @@ function pdns_current_client_id()
     return $link ? (int) $link->client_id : 0;
 }
 
-/**
- * Domains owned by a client (with their status), for zone ownership checks.
- */
 function pdns_client_domains($clientid)
 {
     return Capsule::table('tbldomains')->where('userid', (int) $clientid)
