@@ -1,0 +1,12 @@
+{
+  "name": "ServerSpan Sales Tracker for WHMCS",
+  "slug": "sales-tracker",
+  "type": "addon",
+  "version": "1.0.0-beta.1",
+  "stability": "beta",
+  "license": "MIT",
+  "php": ">=8.1",
+  "whmcs": ">=8.13",
+  "maintainer": "ServerSpan",
+  "homepage": "https://www.serverspan.com/en/"
+}

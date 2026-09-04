@@ -17,6 +17,7 @@ The goal of this repository is simple: useful WHMCS integrations that are readab
 | Module | Type | Version | Status | Documentation |
 |---|---|---:|---|---|
 | Revolut Gateway for WHMCS | Payment | 1.0.0-beta.1 | **Beta** - sandbox validation required | [`payments/revolut`](payments/revolut/) |
+| ServerSpan Sales Tracker | Addon | 1.0.0-beta.1 | **Beta** - live WHMCS validation required | [`addons/sales-tracker`](addons/sales-tracker/) |
 
 > **Production note:** a module is not considered production-ready merely because it passes static tests. Read the module-specific test status and perform the documented provider sandbox tests before enabling it for live billing.
 
@@ -51,10 +52,11 @@ Run all available checks:
 make test
 ```
 
-Build an install ZIP for the Revolut gateway:
+Build install ZIPs:
 
 ```bash
 make package-revolut
+make package-sales-tracker
 ```
 
 Generated archives are written to `dist/` and are intentionally ignored by Git.
