@@ -1,9 +1,24 @@
-# Server Provisioning Modules
+# WHMCS Server Provisioning Modules
 
-WHMCS server modules and provisioning integrations live here. Typical integrations include VPS platforms, hosting control panels, DNS services, storage platforms, and other infrastructure that WHMCS can create, suspend, unsuspend, terminate, or query.
+This category is reserved for true WHMCS provisioning/lifecycle modules - integrations where WHMCS can create, suspend, unsuspend, terminate, change or query a provisioned service.
 
-No server module has been published yet.
+Typical fits include VPS platforms, hosting control panels, DNS platforms, storage services and other infrastructure APIs.
 
-Server modules must make destructive lifecycle actions explicit and must be safe against duplicated provisioning callbacks wherever the upstream API allows idempotency.
+## Published modules
+
+None yet.
+
+That is intentional: operational addons such as Colete Online or LogicBoxes Tools belong under [`../addons/`](../addons/) because they do not implement the WHMCS service provisioning lifecycle.
+
+## Requirements for future server modules
+
+Server modules must:
+
+- make create/suspend/unsuspend/terminate semantics explicit;
+- resist duplicate provisioning callbacks and retries;
+- validate remote resource identifiers before destructive operations;
+- separate upstream/API errors from customer-facing messages;
+- avoid leaking infrastructure credentials in module logs;
+- document what happens when WHMCS and the upstream platform disagree about state.
 
 Need infrastructure for a custom WHMCS provisioning stack? See ServerSpan [KVM & LXC VPS hosting](https://www.serverspan.com/en/virtual-servers).

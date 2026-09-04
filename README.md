@@ -1,86 +1,100 @@
 # ServerSpan WHMCS Modules
 
-Open-source **WHMCS payment gateways, addon modules, and server provisioning integrations** maintained by [ServerSpan](https://www.serverspan.com/en/).
+[![CI](https://github.com/serverspan/whmcs-modules/actions/workflows/ci.yml/badge.svg)](https://github.com/serverspan/whmcs-modules/actions/workflows/ci.yml)
 
-The goal of this repository is simple: useful WHMCS integrations that are readable, auditable, versioned, and practical to operate. No encoded PHP, no hidden license callbacks, and no mystery binaries in source control.
+Open-source WHMCS integrations maintained by [ServerSpan](https://www.serverspan.com/en/): payment gateways, operational addons, security tooling, registrar automation, shipping integrations, analytics, and future provisioning modules.
+
+The repository is intentionally source-first: no encoded PHP, no hidden licensing callbacks, no mystery binaries, and no telemetry unless communication with an upstream provider is fundamental to the module itself.
+
+## Module catalog
+
+| Module | Type | Version | Maturity | What it does |
+|---|---|---:|---|---|
+| [Revolut Gateway](payments/revolut/) | Payment gateway | 1.0.0-beta.1 | Beta | Embedded card checkout, saved payment methods, recurring merchant-initiated charges, refunds, Revolut Pay and verified webhooks. |
+| [Sales Tracker](addons/sales-tracker/) | Addon | 1.0.0-beta.1 | Beta | Sales dashboards, agent attribution, product rankings, order trends and custom reporting periods. |
+| [Colete Online](addons/colete-online/) | Addon | 1.0.0-beta.1 | Beta | Courier quotes, shipment creation, AWB/label handling, COD/options and tracking from WHMCS orders. |
+| [LogicBoxes Tools](addons/logicboxes-tools/) | Addon | 1.0.0-beta.1 | Beta | Multi-account LogicBoxes/ResellerClub customer, domain, pricing, promo, transfer, SSO and automation toolkit with dry-run jobs and rollback data. |
+| [Super Email Verification](addons/supermailverify/) | Addon | 1.0.0 | Beta | Email verification, disposable-domain blocking, duplicate-address defenses, email/IP bans, captcha gates, reminders and cleanup automation. |
+| [Support PIN](addons/supportpin/) | Addon | 1.0.0 | Beta | Client-generated support PINs, staff verification, temporary access grants, rate limiting and audit logging. |
+
+See the [full module catalog](docs/MODULE-CATALOG.md) for install paths, schema/cron behavior, upstream dependencies and validation notes.
+
+> **Production note:** version numbers and passing static tests do not automatically mean a module is production-validated. Each module documents the provider sandbox/live validation still required before enabling financially or operationally sensitive automation.
 
 ## Repository layout
 
-| Category | Path | Purpose |
-|---|---|---|
-| Payment gateways | [`payments/`](payments/) | Card, bank, wallet, and alternative payment integrations |
-| Addon modules | [`addons/`](addons/) | WHMCS admin/client-area addons and automation |
-| Server modules | [`servers/`](servers/) | Provisioning and lifecycle integrations for hosting infrastructure |
+```text
+payments/          Payment gateways
+addons/            Admin/client-area addons and operational automation
+servers/           Provisioning/lifecycle modules for infrastructure
+docs/              Repository standards and module catalog
+scripts/           Packaging helpers
+.github/           CI, issue forms and contribution automation
+```
 
-## Available modules
+New modules should follow the canonical release layout documented in [`docs/MODULE-STANDARDS.md`](docs/MODULE-STANDARDS.md).
 
-| Module | Type | Version | Status | Documentation |
-|---|---|---:|---|---|
-| Revolut Gateway for WHMCS | Payment | 1.0.0-beta.1 | **Beta** - sandbox validation required | [`payments/revolut`](payments/revolut/) |
-| ServerSpan Sales Tracker | Addon | 1.0.0-beta.1 | **Beta** - live WHMCS validation required | [`addons/sales-tracker`](addons/sales-tracker/) |
-| ServerSpan Colete Online | Addon | 1.0.0-beta.1 | **Beta** - Colete-Online staging validation required | [`addons/colete-online`](addons/colete-online/) |
-| ServerSpan LogicBoxes Tools | Addon | 1.0.0-beta.1 | **Beta** - LogicBoxes test-account validation required | [`addons/logicboxes-tools`](addons/logicboxes-tools/) |
+## Quick start
 
-> **Production note:** a module is not considered production-ready merely because it passes static tests. Read the module-specific test status and perform the documented provider sandbox tests before enabling it for live billing.
-
-## Why ServerSpan publishes these modules
-
-WHMCS is still deeply embedded in hosting operations, but too many third-party modules are opaque, abandoned, or tied to unnecessary licensing systems. This repository keeps the integration layer inspectable and gives operators a sane starting point for their own deployments.
-
-If you are building or operating a hosting business around WHMCS, these ServerSpan services are directly relevant:
-
-- [WHMCS-compatible reseller hosting](https://www.serverspan.com/en/webreseller) - white-label DirectAdmin reseller hosting for agencies and hosting providers.
-- [KVM & LXC VPS hosting](https://www.serverspan.com/en/virtual-servers) - infrastructure for WHMCS, automation workers, billing stacks, and custom hosting platforms.
-- [DirectAdmin web hosting](https://www.serverspan.com/en/webhosting) - managed shared hosting with DirectAdmin, SSL, backups, and DDoS protection.
-- [Free DevOps & sysadmin tools](https://www.serverspan.com/en/tools/index) - cloud-init, firewall, RAID, SPF/DMARC, Certbot, cron, and other browser-based utilities.
-
-For people starting a hosting business, ServerSpan also maintains a practical guide on [how to start a reseller hosting business](https://www.serverspan.com/en/blog/how-to-start-a-reseller-hosting-business-in-2026-complete-step-by-step-playbook).
-
-## Principles
-
-- **Source first.** Human-readable source belongs in Git.
-- **No secret collection.** Modules must not phone home with customer, billing, API, or infrastructure data unless that behaviour is fundamental to the documented upstream service.
-- **No raw payment data.** Payment modules should use provider-hosted fields/tokenisation whenever supported.
-- **Idempotent callbacks.** Repeated webhooks or browser returns must not double-credit invoices or duplicate provisioning.
-- **Explicit compatibility.** Every module documents its tested WHMCS/PHP/provider versions.
-- **Safe logging.** API secrets, card data, passwords, and sensitive tokens must never be logged intentionally.
-- **Reproducible releases.** Release ZIPs are generated from source; generated archives do not belong in the main source tree.
-
-## Development
-
-Run all available checks:
+Run every repository check:
 
 ```bash
 make test
 ```
 
-Build install ZIPs:
+Build every distributable module:
+
+```bash
+make package-all
+```
+
+Or package one module:
 
 ```bash
 make package-revolut
 make package-sales-tracker
 make package-colete-online
 make package-logicboxes-tools
+make package-supermailverify
+make package-supportpin
 ```
 
-Generated archives are written to `dist/` and are intentionally ignored by Git.
+Generated ZIP files and SHA-256 files are written to `dist/` and are intentionally excluded from Git.
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/MODULE-STANDARDS.md`](docs/MODULE-STANDARDS.md) before adding a module.
+## Design principles
 
-## Security
+- **Readable source.** Operators must be able to audit what runs inside their billing system.
+- **No secret collection.** API keys, customer data, billing data and infrastructure credentials are not sent to ServerSpan.
+- **Safe writes.** Financial and destructive actions should be idempotent, previewable or explicitly confirmed where the upstream workflow permits it.
+- **No raw payment data.** Payment integrations should keep PAN/CVV outside WHMCS whenever hosted fields or provider tokenisation exist.
+- **Secure hooks and callbacks.** CSRF, webhook authentication, replay protection and repeated include/callback safety are treated as first-class concerns.
+- **Explicit compatibility.** README files separate PHP/static compatibility from real WHMCS/provider validation.
+- **Safe logging.** Secrets, raw tokens, card data and passwords must never be intentionally written to logs.
+- **Reproducible releases.** Install archives are generated from source and do not live in the main tree.
 
-Do **not** post API secrets, payment tokens, card data, WHMCS admin credentials, database dumps, or unredacted gateway logs in issues.
+## Security and support
 
-For a vulnerability that should not be public, follow [`SECURITY.md`](SECURITY.md).
+Do not post API credentials, payment tokens, card data, WHMCS administrator credentials, database dumps or unredacted logs in public issues.
 
-## Support
+- Bugs and feature requests: [GitHub Issues](https://github.com/serverspan/whmcs-modules/issues)
+- Security reports: [`SECURITY.md`](SECURITY.md)
+- Contribution requirements: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Module standards: [`docs/MODULE-STANDARDS.md`](docs/MODULE-STANDARDS.md)
 
-- Bugs and feature requests for these modules: use GitHub Issues.
-- Security reports: see [`SECURITY.md`](SECURITY.md).
-- ServerSpan hosting or infrastructure support: use the normal [ServerSpan website](https://www.serverspan.com/en/) and client support channels.
+## Why ServerSpan publishes this
+
+WHMCS remains deeply embedded in hosting operations, while a surprising amount of its third-party ecosystem is still encoded, abandoned, license-server dependent or difficult to audit. This repository is meant to provide boring, inspectable integrations that operators can actually own.
+
+If you operate a hosting business around WHMCS, these ServerSpan services are directly relevant:
+
+- [WHMCS-compatible reseller hosting](https://www.serverspan.com/en/webreseller)
+- [KVM & LXC VPS hosting](https://www.serverspan.com/en/virtual-servers)
+- [DirectAdmin web hosting](https://www.serverspan.com/en/webhosting)
+- [Free DevOps & sysadmin tools](https://www.serverspan.com/en/tools/index)
+- [How to start a reseller hosting business](https://www.serverspan.com/en/blog/how-to-start-a-reseller-hosting-business-in-2026-complete-step-by-step-playbook)
 
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
 
-WHMCS, Revolut, Colete-Online, ResellerClub, LogicBoxes, DirectAdmin, cPanel, and other product names are trademarks of their respective owners. This repository is not endorsed by those vendors unless explicitly stated for a specific module.
+WHMCS, Revolut, Colete-Online, ResellerClub, LogicBoxes, DirectAdmin, cPanel and other product names are trademarks of their respective owners. This repository is not endorsed by those vendors unless explicitly stated for a specific module.

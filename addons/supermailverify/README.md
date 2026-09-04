@@ -1,79 +1,102 @@
-# Super Email Verification Pro (independent recreation)
+# ServerSpan Super Email Verification for WHMCS
 
-A WHMCS addon module developed by [ServerSpan](https://www.serverspan.com) that recreates
-the feature set of the "Super Email Verification Pro" marketplace module with original
-code: email verification codes, anti-spam registration control, disposable-domain
-blocking, email/IP ban lists, statistics and outbound mail tools.
+Email-verification and anti-abuse controls for WHMCS registration, checkout, support and contact workflows.
 
-## Directory layout
+**Version:** 1.0.0  
+**Maturity:** Beta  
+**Requires:** PHP 8.1+, WHMCS 8.6+  
+**Install path:** `modules/addons/supermailverify/`
 
-```
-modules/addons/supermailverify/
-├── supermailverify.php      # module config, activation, admin area, client area
-├── hooks.php                # registration/checkout/ticket/contact hooks, cron automation
-├── lib/
-│   └── Functions.php        # settings, codes, bans, mailer, captcha helpers
-├── templates/
-│   └── verify.tpl           # client-area verification page
-└── lang/
-    ├── english.php
-    └── romanian.php
-```
+## What it does
+
+- Configurable verification codes and three verification UX modes.
+- Gmail dot/plus-address duplicate normalization.
+- Disposable-domain blocking with an updateable public blocklist.
+- Email and IP ban lists with temporary/permanent controls.
+- Registration, checkout, ticket and contact-form verification gates.
+- reCAPTCHA v3 and Cloudflare Turnstile support.
+- Verification statistics and searchable admin lists.
+- Reminder/deactivation/closure/deletion automation on the WHMCS daily cron.
+- Outbound mail through WHMCS SMTP, Postmark, Mailgun, SendGrid or SparkPost.
 
 ## Installation
 
-1. Copy the folder to `modules/addons/supermailverify/`.
-2. In WHMCS admin go to **System Settings > Addon Modules**, activate
-   *Super Email Verification Pro*. Activation creates four tables:
-   `mod_sev_emails`, `mod_sev_email_bans`, `mod_sev_ip_bans`, `mod_sev_domains`.
-3. Click **Configure**, set the verification type, code format, ban thresholds,
-   mail provider and captcha keys, then grant admin role access.
-4. Open the module (Addons > Super Email Verification Pro), go to **Restrictions**
-   and click **Update Blacklist from Public List** to import the disposable-domain list.
+1. Build the install archive from this repository with `make package-supermailverify`, or copy this source directory to `modules/addons/supermailverify/`.
+2. In WHMCS go to **System Settings > Addon Modules** and activate **Super Email Verification Pro**.
+3. Grant the desired administrator roles access to the addon.
+4. Configure verification mode, code policy, ban thresholds, mail provider and optional captcha keys.
+5. In the addon admin area, optionally update the disposable-domain blacklist from its public source.
 
-Requires WHMCS 8.6+ / PHP 8.1+ (uses Capsule, `localAPI`, PHPMailer bundled with WHMCS).
+## Database changes
+
+Activation creates:
+
+```text
+mod_sev_emails
+mod_sev_email_bans
+mod_sev_ip_bans
+mod_sev_domains
+```
+
+Deactivation intentionally preserves these tables. Remove them manually only when performing a full uninstall and after confirming the stored verification/ban history is no longer required.
 
 ## Verification modes
 
-- **static** — logged-in but unverified clients are redirected to
-  `index.php?m=supermailverify` until they enter the code.
-- **after** — code is sent after registration; a banner nags the client and checkout
-  is blocked until verified.
-- **modal** — a full-screen popup appears on every client-area page until verified.
+- **static** - an unverified logged-in client is sent to the verification page until the code is accepted.
+- **after** - verification happens after registration; the client sees reminders and checkout is blocked until verified.
+- **modal** - verification is presented as a blocking client-area modal.
+
+## Automation
+
+The standard WHMCS `DailyCronJob` hook can perform configured reminder, deactivation, account-closure and deletion actions. Destructive automation is disabled unless its corresponding age threshold is configured.
+
+Before enabling automatic account closure/deletion in production, validate the rules against a staging WHMCS database and confirm the safeguards around active services and unpaid invoices match your policy.
+
+## External services
+
+Depending on configuration, the addon can contact:
+
+- the configured transactional mail provider;
+- Google reCAPTCHA v3;
+- Cloudflare Turnstile;
+- the public disposable-email-domain list source when an administrator explicitly updates the list.
+
+It does not send customer data or credentials to ServerSpan.
+
+## Security notes
+
+- State-changing administrator actions use WHMCS CSRF protection.
+- Captcha secret keys and mail-provider credentials should be treated as production secrets.
+- Do not publish unredacted module logs or configuration screenshots containing provider credentials.
+- Verification is an anti-abuse control, not a substitute for MFA or administrator authentication.
 
 ## Feature map
 
-| Feature | Where |
+| Feature | Location |
 |---|---|
-| Code verification, configurable length/charset | Config fields + verify page |
-| Gmail dot/plus-trick duplicate detection | `ClientDetailsValidation` hook |
-| Mailing list: search, resend, manual verify, unverify, delete, pagination | Admin > Mailing List |
-| Email bans, temporary/forever, search, pagination | Admin > Email Bans |
-| IP bans, temporary/forever, pagination | Admin > Banned IPs |
-| Disposable-domain blacklist, add/delete/update | Admin > Restrictions |
-| Verified/unverified charts (today / 30 days / 12 months + totals) | Admin > Statistics |
-| Send email to non-clients, CC, attachments, WHMCS signature | Admin > Tools |
-| Mail providers: WHMCS SMTP, Postmark, Mailgun, SendGrid, SparkPost | Config + `lib/Functions.php` |
-| Ban email after X invalid codes; ban IP after X emails/24h | Config fields |
-| Ticket-open and contact-form verification gates | `TicketOpenValidation`, `ContactDetailsValidation` hooks |
-| reCAPTCHA v3 / Cloudflare Turnstile | Config + footer injection |
-| Reminder, auto-deactivate, auto-close, auto-delete (no services/unpaid invoices) | `DailyCronJob` hook |
+| Code generation and verification | Addon configuration + client verification page |
+| Gmail duplicate normalization | Client validation hook |
+| Email/IP bans | Addon admin area + validation hooks |
+| Disposable domains | Restrictions admin area |
+| Verification statistics | Statistics admin area |
+| Mail provider selection | Addon configuration |
+| Ticket/contact gates | WHMCS validation hooks |
+| Captcha | Configuration + client-area hook output |
+| Reminder/deactivation/cleanup | WHMCS daily cron hook |
 
-The marketplace listing also mentions an Izipay card-token status button; that is
-gateway-specific and intentionally not recreated.
+## Validation status
 
-## Notes
+The source is included in repository-wide PHP linting and CI. A dedicated behavioral self-test suite has not yet been added. Validate registration, verification, checkout gating, ticket/contact gating and any destructive cron policy in a non-production WHMCS installation before enforcing it globally.
 
-- The disposable-domain list comes from the public
-  `disposable-email-domains/disposable-email-domains` blocklist on GitHub.
-- Deactivation preserves all `mod_sev_*` tables so re-activation loses nothing.
-  Drop them manually for a full reset.
-- Automated actions (reminder/deactivate/close/delete) run on the standard WHMCS
-  daily cron; no extra cron entry is needed.
-- Admin actions are CSRF-protected with the WHMCS admin token.
+## Repository metadata
 
-## About
+- [`VERSION`](VERSION)
+- [`module.json`](module.json)
+- [`CHANGELOG.md`](CHANGELOG.md)
+- [Repository module catalog](../../docs/MODULE-CATALOG.md)
 
-Developed by [ServerSpan](https://www.serverspan.com). If you operate WHMCS for a
-hosting business, see [ServerSpan WHMCS-compatible reseller hosting](https://www.serverspan.com/en/webreseller)
-and the [ServerSpan DevOps & sysadmin toolbox](https://www.serverspan.com/en/tools/index).
+## ServerSpan
+
+Developed and maintained by [ServerSpan](https://www.serverspan.com/).
+
+For WHMCS hosting operations, see [ServerSpan reseller hosting](https://www.serverspan.com/en/webreseller), [KVM/LXC VPS](https://www.serverspan.com/en/virtual-servers) and the [DevOps/sysadmin toolbox](https://www.serverspan.com/en/tools/index).
