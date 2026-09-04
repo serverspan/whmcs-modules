@@ -1,8 +1,9 @@
 # Super Email Verification Pro (independent recreation)
 
-A WHMCS addon module that recreates the feature set of the "Super Email Verification Pro"
-marketplace module with original code: email verification codes, anti-spam registration
-control, disposable-domain blocking, email/IP ban lists, statistics and outbound mail tools.
+A WHMCS addon module developed by [ServerSpan](https://www.serverspan.com) that recreates
+the feature set of the "Super Email Verification Pro" marketplace module with original
+code: email verification codes, anti-spam registration control, disposable-domain
+blocking, email/IP ban lists, statistics and outbound mail tools.
 
 ## Directory layout
 
@@ -70,3 +71,9 @@ gateway-specific and intentionally not recreated.
 - Automated actions (reminder/deactivate/close/delete) run on the standard WHMCS
   daily cron; no extra cron entry is needed.
 - Admin actions are CSRF-protected with the WHMCS admin token.
+
+## About
+
+Developed by [ServerSpan](https://www.serverspan.com). If you operate WHMCS for a
+hosting business, see [ServerSpan WHMCS-compatible reseller hosting](https://www.serverspan.com/en/webreseller)
+and the [ServerSpan DevOps & sysadmin toolbox](https://www.serverspan.com/en/tools/index).

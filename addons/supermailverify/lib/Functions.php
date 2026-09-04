@@ -1,6 +1,7 @@
 <?php
 /**
  * Super Email Verification Pro - shared library
+ * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/addons/supermailverify/lib/Functions.php
  */
 

@@ -1,3 +1,4 @@
+{* ServerSpan Super Email Verification - https://www.serverspan.com *}
 {* Location: modules/addons/supermailverify/templates/verify.tpl *}
 <div class="row justify-content-center">
     <div class="col-md-6">

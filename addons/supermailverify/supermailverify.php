@@ -1,6 +1,7 @@
 <?php
 /**
  * Super Email Verification Pro (independent recreation)
+ * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/addons/supermailverify/supermailverify.php
  */
 
@@ -21,7 +22,7 @@ function supermailverify_config()
         'name'        => 'Super Email Verification Pro',
         'description' => 'Email verification with anti-spam registration control, disposable domain blocking, '
             . 'email/IP ban lists, statistics and outbound mail tools.',
-        'author'      => 'ENGINYRING',
+        'author'      => 'ServerSpan',
         'language'    => 'english',
         'version'     => SEV_VERSION,
         'fields'      => [
@@ -227,6 +228,8 @@ function supermailverify_output($vars)
         default:
             sev_admin_maillist($modulelink);
     }
+
+    echo '<p class="text-muted" style="margin-top:20px">Developed by <a href="https://www.serverspan.com/en/tools/index" target="_blank">ServerSpan</a>.</p>';
 }
 
 function sev_admin_handle_post()

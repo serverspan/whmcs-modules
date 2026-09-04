@@ -1,6 +1,7 @@
 <?php
 /**
  * Super Email Verification Pro - hooks
+ * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/addons/supermailverify/hooks.php
  */
 
