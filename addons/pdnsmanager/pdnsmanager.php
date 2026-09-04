@@ -3,6 +3,10 @@
  * ServerSpan PowerDNS Manager
  * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/addons/pdnsmanager/pdnsmanager.php
+ *
+ * API credentials and nameservers come from WHMCS server records of type
+ * "pdnshosting" (System Settings > Servers). Multi-server aware: every zone
+ * remembers its backend in mod_pdns_zones.server_id.
  */
 
 if (!defined("WHMCS")) {
@@ -13,7 +17,7 @@ use WHMCS\Database\Capsule;
 
 require_once __DIR__ . '/lib/Functions.php';
 
-define('PDNS_VERSION', '1.0.0');
+define('PDNS_VERSION', '1.1.0');
 define('PDNS_PER_PAGE', 25);
 
 function pdnsmanager_config()
@@ -21,21 +25,17 @@ function pdnsmanager_config()
     return [
         'name'        => 'ServerSpan PowerDNS Manager',
         'description' => 'Self-service DNS zone management for client domains on PowerDNS: '
-            . 'record editor, DNSSEC, zone import/export, zone templates and registration lifecycle automation.',
+            . 'record editor, DNSSEC, zone import/export, zone templates and registration lifecycle '
+            . 'automation. Uses the WHMCS server records of type "pdnshosting" for API access.',
         'author'      => 'ServerSpan',
         'language'    => 'english',
         'version'     => PDNS_VERSION,
         'fields'      => [
-            'api_url' => [
-                'FriendlyName' => 'PowerDNS API URL', 'Type' => 'text', 'Size' => '60',
-                'Default' => 'http://127.0.0.1:8081',
-                'Description' => 'Base URL of the PowerDNS authoritative server API.',
-            ],
-            'api_key' => [
-                'FriendlyName' => 'API Key', 'Type' => 'password', 'Size' => '60',
-            ],
-            'server_id' => [
-                'FriendlyName' => 'Server ID', 'Type' => 'text', 'Size' => '20', 'Default' => 'localhost',
+            'default_server_id' => [
+                'FriendlyName' => 'Default WHMCS Server ID', 'Type' => 'text', 'Size' => '5',
+                'Default' => '0',
+                'Description' => 'Server record (type pdnshosting) used for registrar-hook zone creation. '
+                    . '0 = first configured server.',
             ],
             'zone_type' => [
                 'FriendlyName' => 'Zone Type', 'Type' => 'dropdown',
@@ -52,11 +52,12 @@ function pdnsmanager_config()
                 'Options' => 'auto,post,put,none', 'Default' => 'auto',
                 'Description' => 'How zones are rectified after changes (needed for DNSSEC).',
             ],
-            'ns1' => ['FriendlyName' => 'Nameserver 1', 'Type' => 'text', 'Size' => '40'],
-            'ns2' => ['FriendlyName' => 'Nameserver 2', 'Type' => 'text', 'Size' => '40'],
-            'ns3' => ['FriendlyName' => 'Nameserver 3 (optional)', 'Type' => 'text', 'Size' => '40'],
-            'ns4' => ['FriendlyName' => 'Nameserver 4 (optional)', 'Type' => 'text', 'Size' => '40'],
-            'ns5' => ['FriendlyName' => 'Nameserver 5 (optional)', 'Type' => 'text', 'Size' => '40'],
+            'ns1' => ['FriendlyName' => 'Fallback Nameserver 1', 'Type' => 'text', 'Size' => '40',
+                'Description' => 'Used only when no pdnshosting server record exists.'],
+            'ns2' => ['FriendlyName' => 'Fallback Nameserver 2', 'Type' => 'text', 'Size' => '40'],
+            'ns3' => ['FriendlyName' => 'Fallback Nameserver 3 (optional)', 'Type' => 'text', 'Size' => '40'],
+            'ns4' => ['FriendlyName' => 'Fallback Nameserver 4 (optional)', 'Type' => 'text', 'Size' => '40'],
+            'ns5' => ['FriendlyName' => 'Fallback Nameserver 5 (optional)', 'Type' => 'text', 'Size' => '40'],
             'doh_provider' => [
                 'FriendlyName' => 'NS Check Provider', 'Type' => 'dropdown',
                 'Options' => 'google,cloudflare', 'Default' => 'google',
@@ -91,6 +92,7 @@ function pdnsmanager_activate()
             Capsule::schema()->create('mod_pdns_zones', function ($table) {
                 $table->increments('id');
                 $table->string('domain', 190)->unique();
+                $table->unsignedInteger('server_id')->default(0)->index();
                 $table->unsignedInteger('clientid')->default(0)->index();
                 $table->boolean('template_applied')->default(false);
                 $table->dateTime('created_at');
@@ -124,8 +126,10 @@ function pdnsmanager_activate()
                 $table->dateTime('created_at')->index();
             });
         }
-        return ['status' => 'success', 'description' => 'Tables created. Configure the PowerDNS API '
-            . 'endpoint, key and nameservers below.'];
+        pdns_ensure_schema(); // additive migration for pre-1.1 installs
+        return ['status' => 'success', 'description' => 'Tables created. Add your PowerDNS backends under '
+            . 'System Settings > Servers (type: ServerSpan PowerDNS DNS Hosting) — hostname = API URL, '
+            . 'access hash = API key, nameservers 1-4 = zone NS records.'];
     } catch (\Exception $e) {
         return ['status' => 'error', 'description' => 'Activation failed: ' . $e->getMessage()];
     }
@@ -141,6 +145,7 @@ function pdnsmanager_deactivate()
 
 function pdnsmanager_output($vars)
 {
+    pdns_ensure_schema();
     $modulelink = $vars['modulelink'];
     $msg = '';
     $err = '';
@@ -163,6 +168,13 @@ function pdnsmanager_output($vars)
     if ($err) {
         echo '<div class="alert alert-danger">' . htmlspecialchars($err) . '</div>';
     }
+
+    $servers = pdns_servers();
+    if (!$servers) {
+        echo '<div class="alert alert-warning">No PowerDNS servers configured yet. Add one under '
+            . '<a href="configservers.php">System Settings &gt; Servers</a> with module type '
+            . '<strong>ServerSpan PowerDNS DNS Hosting</strong> (hostname = API URL, access hash = API key).</div>';
+    }
     echo '<ul class="nav nav-tabs" style="margin-bottom:20px">';
     foreach ($tabs as $key => $label) {
         $active = $tab === $key ? ' class="active"' : '';
@@ -178,7 +190,7 @@ function pdnsmanager_output($vars)
             pdns_admin_log($modulelink);
             break;
         default:
-            pdns_admin_zones($modulelink);
+            pdns_admin_zones($modulelink, $servers);
     }
 
     echo '<p class="text-muted" style="margin-top:20px">Developed by '
@@ -195,7 +207,8 @@ function pdns_admin_handle_post()
             if (!preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $domain)) {
                 return ['', 'Invalid domain name.'];
             }
-            list($ok, $e) = pdns_create_zone($domain);
+            $serverId = (int) (isset($_POST['server_id']) ? $_POST['server_id'] : 0);
+            list($ok, $e) = pdns_create_zone($domain, $serverId);
             if (!$ok) {
                 return ['', $e];
             }
@@ -299,7 +312,7 @@ function pdns_pager($modulelink, $tab, $total, $page)
     echo '</ul>';
 }
 
-function pdns_admin_zones($modulelink)
+function pdns_admin_zones($modulelink, $servers)
 {
     $page  = max(1, (int) (isset($_GET['page']) ? $_GET['page'] : 1));
     $total = Capsule::table('mod_pdns_zones')->count();
@@ -311,19 +324,31 @@ function pdns_admin_zones($modulelink)
     echo pdns_token();
     echo '<input type="hidden" name="pdns_do" value="create_zone">';
     echo '<input type="text" name="domain" class="form-control" placeholder="example.com" required> ';
+    if ($servers) {
+        echo '<select name="server_id" class="form-control">';
+        foreach ($servers as $sid => $srv) {
+            echo '<option value="' . (int) $sid . '">' . htmlspecialchars($srv->name ?: $srv->hostname) . '</option>';
+        }
+        echo '</select> ';
+    }
     echo '<button class="btn btn-primary">Create Zone</button></form></div>';
     echo '<div class="col-md-4"><p class="text-muted pull-right" style="margin-top:10px">'
         . 'SOA and default NS records are protected from client modification.</p></div></div>';
 
     echo '<table class="table table-striped"><thead><tr>'
-        . '<th>Domain</th><th>Client</th><th>Template</th><th>Created</th><th>Actions</th>'
+        . '<th>Domain</th><th>Server</th><th>Client</th><th>Template</th><th>Created</th><th>Actions</th>'
         . '</tr></thead><tbody>';
     foreach ($rows as $row) {
+        $serverLabel = '-';
+        if (isset($row->server_id) && $row->server_id && isset($servers[(int) $row->server_id])) {
+            $srv = $servers[(int) $row->server_id];
+            $serverLabel = htmlspecialchars($srv->name ?: $srv->hostname);
+        }
         $client = $row->clientid
             ? '<a href="clientssummary.php?userid=' . (int) $row->clientid . '">#' . (int) $row->clientid . '</a>'
             : '-';
         echo '<tr><td><a href="' . $modulelink . '&pdns_tab=zones&manage=' . urlencode($row->domain) . '">'
-            . htmlspecialchars($row->domain) . '</a></td><td>' . $client . '</td>'
+            . htmlspecialchars($row->domain) . '</a></td><td>' . $serverLabel . '</td><td>' . $client . '</td>'
             . '<td>' . ($row->template_applied ? '<span class="label label-success">Applied</span>'
                 : '<span class="label label-default">-</span>') . '</td>'
             . '<td>' . htmlspecialchars($row->created_at) . '</td><td>';
@@ -339,7 +364,7 @@ function pdns_admin_zones($modulelink)
         echo '</td></tr>';
     }
     if (!$total) {
-        echo '<tr><td colspan="5" class="text-center text-muted">No zones registered. '
+        echo '<tr><td colspan="6" class="text-center text-muted">No zones registered. '
             . 'Zones appear here when created above or via domain registration hooks.</td></tr>';
     }
     echo '</tbody></table>';
@@ -351,7 +376,7 @@ function pdns_admin_zones($modulelink)
         $zone = pdns_get_zone($domain);
         if (!$zone) {
             echo '<div class="alert alert-danger">Zone ' . htmlspecialchars($domain)
-                . ' not found on the PowerDNS server.</div>';
+                . ' not found on its PowerDNS server.</div>';
             return;
         }
         pdns_render_record_editor($modulelink, $domain, $zone, true);
@@ -483,6 +508,7 @@ function pdns_render_record_editor($modulelink, $domain, $zone, $isAdmin)
 
 function pdnsmanager_clientarea($vars)
 {
+    pdns_ensure_schema();
     $LANG = isset($vars['_lang']) ? $vars['_lang'] : [];
     $clientId = pdns_current_client_id();
 
