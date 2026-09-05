@@ -95,6 +95,23 @@ If you operate a hosting business around WHMCS, these ServerSpan services are di
 - [Free DevOps & sysadmin tools](https://www.serverspan.com/en/tools/index)
 - [How to start a reseller hosting business](https://www.serverspan.com/en/blog/how-to-start-a-reseller-hosting-business-in-2026-complete-step-by-step-playbook)
 
+## Need a VPS for WHMCS?
+
+Want a clean VPS to install WHMCS, test these modules, or run your billing stack?
+
+**Get 15% off ServerSpan KVM and LXC VPS plans - recurring for as long as you keep the service.**
+
+**Promo code: `WHMCS15`**
+
+[Deploy a ServerSpan VPS](https://www.serverspan.com/en/virtual-servers)
+
+- Applies to new VPS orders.
+- The 15% discount is recurring on renewals, not just the first invoice.
+- WHMCS itself is not included. Bring your own WHMCS license.
+- These modules do not require ServerSpan hosting; using ServerSpan is entirely optional.
+
+The modules remain free and open source. Using ServerSpan simply helps fund continued development, testing, and maintenance of the project.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
