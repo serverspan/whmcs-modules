@@ -3,13 +3,27 @@
  * ServerSpan EuPlatesc - WHMCS payment gateway
  * Developed by ServerSpan - https://www.serverspan.com
  * Location: modules/gateways/euplatesc.php
+ *
+ * The shared library loads lazily: a missing lib must degrade visibly, never
+ * make the gateway silently disappear from the gateway list.
  */
 
 if (!defined("WHMCS")) {
     die("This file cannot be accessed directly");
 }
 
-require_once __DIR__ . '/euplatesc/lib/EpApi.php';
+function euplatesc_bootstrap()
+{
+    if (function_exists('ep_sign')) {
+        return true;
+    }
+    $lib = __DIR__ . '/euplatesc/lib/EpApi.php';
+    if (is_file($lib)) {
+        require_once $lib;
+        return function_exists('ep_sign');
+    }
+    return false;
+}
 
 function euplatesc_MetaData()
 {
@@ -23,7 +37,7 @@ function euplatesc_MetaData()
 
 function euplatesc_config()
 {
-    return [
+    $fields = [
         'FriendlyName' => ['Type' => 'System', 'Value' => 'EuPlătesc (ServerSpan)'],
         'merchantId' => [
             'FriendlyName' => 'Merchant ID (live)', 'Type' => 'text', 'Size' => '30',
@@ -64,15 +78,23 @@ function euplatesc_config()
             'Description' => 'Optional, e.g. apb-3-4,btrl-5-6. Leave empty to allow all.',
         ],
     ];
-}
-
-function euplatesc_config_validate()
-{
-    // Nothing hard-validated server-side; the addon's Dashboard > Check MID verifies credentials.
+    if (!euplatesc_bootstrap()) {
+        $fields['_libwarning'] = [
+            'FriendlyName' => 'Installation Problem', 'Type' => 'text', 'Size' => '0',
+            'Description' => 'modules/gateways/euplatesc/lib/EpApi.php is missing — '
+                . 'copy the lib folder from the package or the gateway will not work.',
+        ];
+    }
+    return $fields;
 }
 
 function euplatesc_link($params)
 {
+    if (!euplatesc_bootstrap()) {
+        return '<div class="alert alert-danger">EuPlătesc gateway is not fully installed '
+            . '(missing modules/gateways/euplatesc/lib/EpApi.php). Contact support.</div>';
+    }
+
     $systemUrl = rtrim($params['systemurl'], '/');
     $invoiceId = (int) $params['invoiceid'];
 
@@ -95,7 +117,6 @@ function euplatesc_link($params)
         $args['filterRate'] = ep_setting('installments');
     }
     if (ep_setting('recurring', '') === 'on' && !empty($params['clientdetails']['tblhosting_recurring'])) {
-        // Recurring services: 30-day frequency until cancelled.
         $args['recurrent_freq'] = '30';
         $args['recurrent_exp']  = gmdate('Ymd', strtotime('+1 year'));
     }
